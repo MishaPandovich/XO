@@ -1,93 +1,70 @@
-var ceil = document.querySelectorAll('.game-item');
-var reset = document.querySelector('#reset-game');
-var message = document.querySelector('#message');
-var player = 'X';
-var stepCount = 0;
-// массив с выйгрышными комбинациями
-var windCombinations = [
-	  	[1,2,3],
-	  	[1,4,7],
-	  	[1,5,9],
-	  	[2,5,8],
-	  	[3,6,9],
-	  	[3,5,7],
-	  	[4,5,6],
-	  	[7,8,9]
-];
-// массив с ходами игроков
-var dataX = [];
-var dataO = [];
-
-function addEvent() {
-	for (var i = 0; i < ceil.length; i++) {
-		ceil[i].addEventListener('click', currentStep);
+class Model {
+	constructor() {
+		this.dataX = [];
+		this.dataO = [];
+		this.player = '';
+		this.stepCount = 0;
 	}
-} 
-addEvent();
 
-function removeEvent() {
-	for (var i = 0; i < ceil.length; i++) {
-		ceil[i].removeEventListener('click', currentStep);
-	}
-}
- 
-function currentStep() {
-	var num = +this.getAttribute('data-ceil');
+	addStep(ceil, num) {
+		this.player === 'X' ? this.dataX.push(num) : this.dataO.push(num);
 
-	if (!this.textContent) {
-		this.innerText = player;
-		player === 'X' ? dataX.push(num) : dataO.push(num);
-
-		if ((dataX.length > 2 || dataO.length > 2) && (checkWin(dataX, num) || checkWin(dataO, num))) {
-			removeEvent();
-
-			return (message.innerText = 'Победил игрок: ' + player);
+		if (!ceil.textContent) {
+			this.stepCount++;
+			this.changePlayer(ceil);
 		}
 	}
 
-	stepCount++;
-	checkCount(stepCount);
-	changePlayer();
+	changePlayer(ceil) {
+		this.player === 'X' ? (this.player = 'O') : (this.player = 'X');
+	}
 }
 
-function checkWin(arr, number) {
-	for (var w = 0; w < windCombinations.length; w++) {
-		var someWinArr = windCombinations[w];
-		var count = 0;
+class View {
+	constructor() {
+		this.gameTitle = document.querySelector('#message');
+	}
 
-		if (someWinArr.indexOf(number) !== -1) {
-			
-			for (var k = 0; k < someWinArr.length; k++) {
-				if (arr.indexOf(someWinArr[k]) !== -1) {
-					count++;
-					if (count === 3) {
-						return true;
-					}
-				}
-			}
+	fillCeil(ceil, player) {	
+		if (!ceil.textContent) {
+			ceil.innerText = player;
+		}
+	}
+
+	changeGameTitle(stepCount, player) {
+		var titlePlayer;
+		(player === 'X') ? (titlePlayer = 'O') : (titlePlayer = 'X');
+		(stepCount === 9) ? (message.innerText = 'НИЧЬЯ') : (message.innerText = 'Ходит игрок: ' + titlePlayer);
+	}
+}
+
+class Controller {
+	constructor() {
+		var model = new Model();
+		var view = new View();
+		this.ceil = document.querySelectorAll('.game-item');
+
+		for (var i = 0; i < this.ceil.length; i++) {
+			ceilClickHandler(this.ceil[i]);
 		}
 
-		count = 0;
+		function ceilClickHandler(ceil) {
+			ceil.addEventListener('click', function() {
+				model.addStep(ceil, +ceil.getAttribute('data-ceil'));
+				view.fillCeil(ceil, model.player);
+				view.changeGameTitle(model.stepCount, model.player);
+			})
+		}
 	}
 }
 
-function checkCount(count) {
-	(count === 9) ? (message.innerText = 'НИЧЬЯ') : (message.innerText = 'Ходит игрок: ' + player);
-}
+var controller = new Controller; 
 
-function changePlayer() {
-	player === 'X' ? (player = 'O') : (player = 'X');
-}
 
-reset.addEventListener('click', function() {
-	for (var i = 0; i < ceil.length; i++) {
-		ceil[i].innerText = '';
-	}
-
-	dataX = [];
-	dataO = [];
-	player = 'X';
-	stepCount = 0;
-	message.innerText = 'Ходит игрок: ' + player;
-	addEvent();
-})
+// не могу получить данные при изменнеии игрока (наблюдат) +
+// надо, чтобы в контроллере получали и виду отдавали + 
+// придумать как передавать элемент на который нажали ceil[i] +
+// отрефакторить код + 
+// добавить счётчик игроков + 
+// при каждом нажатии счётчик увеличивается и проверяется + 
+// сделать так, чтобы повторно нельзя было нажимать на кнопку +
