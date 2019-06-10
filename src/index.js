@@ -1,9 +1,43 @@
+class MapListeners { 
+	constructor() {
+		this.m = {};
+	}
+
+	add(listener, event) {
+		if (this.m.hasOwnProperty(event)) {
+			this.m[event].push(listener);
+		} else {
+			this.m[event] = [];
+			this.m[event].push(listener);
+		}
+	}
+
+	remove(listener, event) {
+	  if (this.m.hasOwnProperty(event)) {
+	    this.m[event].forEach(l => {
+	    	if (l === listener) {
+	        this.m[event].splice(this.m[event].indexOf(listener), 1);
+	        if (Object.keys(this.m[event]).length == 0) {
+	          delete this.m[event];
+	        }
+	      }
+	    });
+  	}
+	}
+
+	get() {
+		return this.m;
+	}
+}
+
 class Model {
 	constructor() {
+		this.mapList = new MapListeners();
 		this.dataX = [];
 		this.dataO = [];
 		this.player = 'X';
 		this.stepCount = 0;
+		this.stateWin = false;
 		this.windCombinations = [
 	  	[1,2,3],
 	  	[1,4,7],
@@ -14,24 +48,16 @@ class Model {
 	  	[4,5,6],
 	  	[7,8,9]
 		];
-
-		this.ceil = document.querySelectorAll('.game-item'); // потом удалить
 	}
 
 	addStep(ceil, num) {
 		if (!ceil.textContent) {
 			this.player === 'X' ? this.dataX.push(num) : this.dataO.push(num);
 			this.stepCount++;
-			ceil.style.pointerEvents = 'none';
 		}
 
-		/*переписать этот блок ~ попробовать решить проблему с помощью паттерна наблюдатель*/
 		if ((this.dataX.length > 2 || this.dataO.length > 2) && (this.checkWin(this.dataX, num) || this.checkWin(this.dataO, num))) {
-			for (var i = 0; i < this.ceil.length; i++) {
-				this.ceil[i].style.pointerEvents = 'none';
-			}
-
-			return true;
+			this.stateWin = true;
 		}
 	}
 
@@ -64,86 +90,96 @@ class Model {
 	  this.dataO = [];
 		this.player = 'X';
 	  this.stepCount = 0;
+	  this.stateWin = false;
 	}
+
+	subscribe(listener, event) {
+		this.mapList.add(listener, event);
+	}
+
+	uscribe(listener, event) {
+		this.mapList.remove(listener, event);
+	}
+
+	notify(event, player, ceil, count, stateWin) {
+    if (this.mapList.get()[event]) {
+      this.mapList.get()[event].forEach(listener => {
+        listener.update(player, ceil, count, stateWin);
+      });
+    }
+  }
 }
 
 class View {
 	constructor() {
 		this.gameTitle = document.querySelector('#message');
-	}
-
-	fillCeil(ceil, player, stepCount) {	
-		if (!ceil.textContent) {
-			ceil.innerText = player;
-			this.changeGameTitle(stepCount, player);
+		this.ceil = document.querySelectorAll('.game-item');
+		this.notPress = function() {
+			for (var i = 0; i < this.ceil.length; i++) {
+				this.ceil[i].style.pointerEvents = 'none';
+			}
+		}
+		this.yesPress = function() {
+			for (var i = 0; i < this.ceil.length; i++) {
+				this.ceil[i].innerText = '';
+				this.ceil[i].style.pointerEvents = 'auto';
+			}
 		}
 	}
 
-	showWin(player) {
-		var gameTitle;
-		(player === 'X')  ? (gameTitle = 'O') : (gameTitle = 'X');
-		this.gameTitle.innerText = 'Победил игрок: ' + gameTitle;
-	}
+	update(player, ceil, count, stateWin) {
+		if (!ceil.textContent) {
+  		ceil.innerText = player;
+  		ceil.style.pointerEvents = 'none';
+  	}
 
-	// сделать более универальным
-	changeGameTitle(stepCount, player) {
-		var gameTitle;
-		(player === 'X')  ? (gameTitle = 'O') : (gameTitle = 'X');
-		(stepCount === 9) ? (message.innerText = 'НИЧЬЯ') : (message.innerText = 'Ходит игрок: ' + gameTitle);
-	}
+  	this.showGameTitle(player, count, stateWin);
+  }
 
-	// избавиться
-	setInintState(player) {
-		message.innerText = 'Ходит игрок: ' + player;
-	}
+  showGameTitle(player, count, stateWin) {
+  	if (stateWin) {
+  		this.notPress();
+			this.gameTitle.innerText = 'Победил игрок: ' + player;
+  	} else {
+  		var messagePlayer;
+  		(player === 'X')  ? (messagePlayer = 'O') : (messagePlayer = 'X');
+			(count === 9) ? (this.gameTitle.innerText = 'НИЧЬЯ') : (this.gameTitle.innerText = 'Ходит игрок: ' + messagePlayer);
+  	}
+  }
+
+  resetGame() {
+  	this.yesPress();
+  	this.gameTitle.innerText = 'Ходит игрок: X';
+  }
 }
 
 class Controller {
 	constructor() {
-		var model = new Model();
-		var view = new View();
-		this.ceil = document.querySelectorAll('.game-item');
-		this.buttonReset = document.querySelector('#reset-game');
+		const model = new Model();
+		const view  = new View();
+		const ceil = document.querySelectorAll('.game-item');
+		const buttonReset =  document.querySelector('#reset-game');
+		model.subscribe(view, "changeData");
 
-		for (var i = 0; i < this.ceil.length; i++) {
-			this.ceil[i].addEventListener('click', ceilClickHandler);
+		for (var i = 0; i < ceil.length; i++) {
+			ceil[i].addEventListener('click', ceilClickHandler);
 		}
 
-		function ceilClickHandler() {
-			var result = model.addStep(this, +this.getAttribute('data-ceil'));
-			view.fillCeil(this, model.player, model.stepCount);
-			model.changePlayer(this);
+  	function ceilClickHandler() {
+  		model.addStep(this, +this.getAttribute('data-ceil'));
+  		model.notify("changeData", model.player, this, model.stepCount, model.stateWin);
+  		model.changePlayer();
+  	}
 
-			if (result) {
-				view.showWin(model.player);
-			}
-		}
+  	buttonReset.addEventListener('click', resetClickHandler);
 
-		this.buttonReset.addEventListener('click', reset);
-
-		function reset() {
-			for (var i=0; i < controller.ceil.length; i++) {
-				controller.ceil[i].innerText = '';
-				controller.ceil[i].style.pointerEvents = 'auto';
-			}
-
-			model.reset();
-			view.setInintState(model.player);
-		}
+  	function resetClickHandler() {
+  		view.resetGame();
+  		model.reset();
+  	}
 	}
 }
 
-var controller = new Controller; 
-
-
-// не могу получить данные при изменнеии игрока (наблюдат) +
-// надо, чтобы в контроллере получали и виду отдавали + 
-// придумать как передавать элемент на который нажали ceil[i] +
-// отрефакторить код + 
-// добавить счётчик игроков + 
-// при каждом нажатии счётчик увеличивается и проверяется + (наблюд)
-// сделать так, чтобы повторно нельзя было нажимать на кнопку +
-// помле нажатия надо удалить спососбность нажатия + 
-// начинать делать проверку на выйгрыш +
-// наблюдатель при выйгрыше должно приходить оповещение контроллеру (обновление) -
-// написать очистку игры+
+(function() {
+  var controller = new Controller();
+}());
